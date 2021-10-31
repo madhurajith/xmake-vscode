@@ -16,6 +16,8 @@ import {Completion} from './completion';
 import {XmakeTaskProvider} from './task';
 import * as process from './process';
 import * as utils from './utils';
+import {XMakeCppCustomConfigurationProvider} from './cpp_custom_configuration_provider';
+import { CppToolsApi, getCppToolsApi,Version } from 'vscode-cpptools';
 
 // the option arguments
 export interface OptionArguments extends vscode.QuickPickItem {
@@ -61,6 +63,9 @@ export class XMake implements vscode.Disposable {
     // the xmake task provider
     private _xmakeTaskProvider: vscode.Disposable | undefined;
 
+    // cpptools custom configuration provider
+    private _xmakeCppCustomConfigurationProvider: XMakeCppCustomConfigurationProvider;
+
     // the constructor
     constructor(context: vscode.ExtensionContext) {
 
@@ -100,6 +105,10 @@ export class XMake implements vscode.Disposable {
         }
         if (this._xmakeTaskProvider) {
             this._xmakeTaskProvider.dispose();
+        }
+        if(this._xmakeCppCustomConfigurationProvider) {
+            this.deregisterCppCustomConfigurationProvider();
+            this._xmakeCppCustomConfigurationProvider.dispose();
         }
     }
 
@@ -143,6 +152,7 @@ export class XMake implements vscode.Disposable {
         let updateIntellisenseScript = path.join(__dirname, `../../assets/update_intellisense.lua`);
         if (fs.existsSync(updateIntellisenseScript)) {
             await process.runv("xmake", ["l", updateIntellisenseScript], {"COLORTERM": "nocolor"}, config.workingDirectory);
+            await this.updateCompileCommands();
         }
     }
 
@@ -274,6 +284,10 @@ export class XMake implements vscode.Disposable {
 
         // init watcher
         this.initWatcher();
+
+        this._xmakeCppCustomConfigurationProvider = new XMakeCppCustomConfigurationProvider();
+        this.updateCompileCommands();
+        this.registerCppCustomConfigurationProvider();
 
         // init project name
         let projectName = path.basename(utils.getProjectRoot());
@@ -989,6 +1003,45 @@ export class XMake implements vscode.Disposable {
         if (chosen && chosen.label !== this._option.get<string>("target")) {
             this._option.set("target", chosen.label);
             this._status.target = chosen.label;
+        }
+    }
+
+    async registerCppCustomConfigurationProvider() {
+        let api: CppToolsApi|undefined = await getCppToolsApi(Version.v2);
+        if (api) {
+            if (api.notifyReady) {
+                // Inform cpptools that a custom config provider will be able to service the current workspace.
+                api.registerCustomConfigurationProvider(this._xmakeCppCustomConfigurationProvider);
+
+                // Do any required setup that the provider needs.
+
+                // Notify cpptools that the provider is ready to provide IntelliSense configurations.
+                api.notifyReady(this._xmakeCppCustomConfigurationProvider);
+            } else {
+                // Running on a version of cpptools that doesn't support v2 yet.
+                
+                // Do any required setup that the provider needs.
+
+                // Inform cpptools that a custom config provider will be able to service the current workspace.
+                api.registerCustomConfigurationProvider(this._xmakeCppCustomConfigurationProvider);
+                api.didChangeCustomConfiguration(this._xmakeCppCustomConfigurationProvider);
+            }
+        }
+    }
+
+    async deregisterCppCustomConfigurationProvider() {
+        let api: CppToolsApi|undefined = await getCppToolsApi(Version.v2);
+        if (api) {
+            api.dispose();
+        }
+    }
+
+    async updateCompileCommands() {
+        const getCompileCommandsScript = path.join(__dirname, '../../assets/get_compile_commands.lua');
+        if(fs.existsSync(getCompileCommandsScript)) {
+            const compileCommandsJson = (await process.iorunv('xmake', ['l', getCompileCommandsScript])).stdout.trim();
+            const compileCommands = JSON.parse(compileCommandsJson);
+            await this._xmakeCppCustomConfigurationProvider.updateCompileCommands(compileCommands,this._status.plat, this._status.arch);
         }
     }
 };

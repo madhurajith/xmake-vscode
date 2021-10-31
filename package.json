@@ -384,7 +384,8 @@
     "@types/mocha": "^2.2.42",
     "@types/node": "^7.0.43",
     "mocha": "^6.2.0",
-    "vscode": "^1.1.36"
+    "vscode": "^1.1.36",
+    "vscode-cpptools": "^5.0.0"
   },
   "__npminstall_done": false
 }
