@@ -40,29 +40,34 @@ function findCompilerArgs(args: string[]) : string[] {
 
 function findStandard(args: string[]) : SourceFileConfigurationItem["configuration"]["standard"] {
     const standardPrefix = isMSVC(args) ? "/std:" : "-std=";
-    const std = args.find(arg => arg.startsWith(standardPrefix)).substring(5);
-    switch(std){
-        case "c89": return "c89"; 
-        case "c99": return "c99";
-        case "c11": return "c11";
-        case "c17": return "c17";
-        case "c++98": return "c++98";
-        case "c++03": return "c++03";
-        case "c++11": return "c++11";
-        case "c++14": return "c++14";
-        case "c++17": return "c++17";
-        case "c++20": return "c++20";
-        case "gnu89": return "gnu89";
-        case "gnu99": return "gnu99";
-        case "gnu11": return "gnu11";
-        case "gnu17": return "gnu17";
-        case "gnu++98": return "gnu++98";
-        case "gnu++03": return "gnu++03";
-        case "gnu++11": return "gnu++11";
-        case "gnu++14": return "gnu++14";
-        case "gnu++17": return "gnu++17";
-        case "gnu++20": return "gnu++20";
-        default: return "c++20";
+    const stdArg = args.find(arg => arg.startsWith(standardPrefix));
+    if(stdArg != undefined) {
+        const std = stdArg.substring(5);
+        switch(std){
+            case "c89": return "c89"; 
+            case "c99": return "c99";
+            case "c11": return "c11";
+            case "c17": return "c17";
+            case "c++98": return "c++98";
+            case "c++03": return "c++03";
+            case "c++11": return "c++11";
+            case "c++14": return "c++14";
+            case "c++17": return "c++17";
+            case "c++20": return "c++20";
+            case "gnu89": return "gnu89";
+            case "gnu99": return "gnu99";
+            case "gnu11": return "gnu11";
+            case "gnu17": return "gnu17";
+            case "gnu++98": return "gnu++98";
+            case "gnu++03": return "gnu++03";
+            case "gnu++11": return "gnu++11";
+            case "gnu++14": return "gnu++14";
+            case "gnu++17": return "gnu++17";
+            case "gnu++20": return "gnu++20";
+            default: return "c++20";
+        }
+    } else {
+        return "c++20";
     }
 }
 
@@ -113,17 +118,18 @@ export class XMakeCppCustomConfigurationProvider implements CustomConfigurationP
     private _workspaceBrowsePaths: Map<string, string[]>;
     private _workspaceCompilerArgs: Map<string, string[]>;
     private _workspaceCompiler: Map<string, string>;
-    private _workspaceStandard: Map<string, string>;
+    private _workspaceStandard: Map<string, SourceFileConfigurationItem["configuration"]["standard"]>;
 
     constructor(){
+        this._sourceFileConfigurations = new Map<string, SourceFileConfigurationItem>();
         this._workspaceBrowsePaths = new Map<string, string[]>();
         this._workspaceCompilerArgs = new Map<string, string[]>();
         this._workspaceCompiler = new Map<string, string>();
-        this._workspaceStandard = new Map<string, string>();
+        this._workspaceStandard = new Map<string, SourceFileConfigurationItem["configuration"]["standard"]>();
 
         vscode.workspace.workspaceFolders.forEach(folder => {
-            this._workspaceBrowsePaths.set(folder.uri.toString(), []);
-            this._workspaceCompilerArgs.set(folder.uri.toString(), []);
+            this._workspaceBrowsePaths.set(folder.uri.fsPath, []);
+            this._workspaceCompilerArgs.set(folder.uri.fsPath, []);
         });
     }
 
@@ -153,7 +159,7 @@ export class XMakeCppCustomConfigurationProvider implements CustomConfigurationP
         let items : SourceFileConfigurationItem[];
         uris.forEach(uri => {
             if(this._sourceFileConfigurations.has(uri.fsPath))
-                items.push(this._sourceFileConfigurations[uri.fsPath]);
+                items.push(this._sourceFileConfigurations.get(uri.fsPath));
         }); 
 
         return new Promise((resolve, reject) => { resolve(items); });
@@ -181,10 +187,10 @@ export class XMakeCppCustomConfigurationProvider implements CustomConfigurationP
     provideBrowseConfiguration(token?: CancellationToken): Thenable<WorkspaceBrowseConfiguration> {
         const workspaceFolder = vscode.workspace.workspaceFolders[0].uri.fsPath;
         return new Promise((resolve, reject) => {
-            resolve({ browsePath : this._workspaceBrowsePaths[workspaceFolder],
-                    compilerArgs : this._workspaceCompilerArgs[workspaceFolder],
-                    compilerPath : this._workspaceCompiler[workspaceFolder],
-                    standard : this._workspaceCompiler[workspaceFolder]
+            resolve({ browsePath : this._workspaceBrowsePaths.get(workspaceFolder),
+                    compilerArgs : this._workspaceCompilerArgs.get(workspaceFolder),
+                    compilerPath : this._workspaceCompiler.get(workspaceFolder),
+                    standard : this._workspaceStandard.get(workspaceFolder)
                 });
         });
     }
@@ -212,10 +218,10 @@ export class XMakeCppCustomConfigurationProvider implements CustomConfigurationP
     provideFolderBrowseConfiguration(uri: Uri, token?: CancellationToken): Thenable<WorkspaceBrowseConfiguration> {
         if(this._workspaceBrowsePaths.has(uri.fsPath)){
             return new Promise((resolve, reject) => {
-                resolve({ browsePath : this._workspaceBrowsePaths[uri.fsPath],
-                    compilerArgs : this._workspaceCompilerArgs[uri.fsPath],
-                    compilerPath : this._workspaceCompiler[uri.fsPath],
-                    standard : this._workspaceCompiler[uri.fsPath]
+                resolve({ browsePath : this._workspaceBrowsePaths.get(uri.fsPath),
+                    compilerArgs : this._workspaceCompilerArgs.get(uri.fsPath),
+                    compilerPath : this._workspaceCompiler.get(uri.fsPath),
+                    standard : this._workspaceStandard.get(uri.fsPath)
                 });
             });
         } else {
@@ -231,10 +237,10 @@ export class XMakeCppCustomConfigurationProvider implements CustomConfigurationP
     updateCompileCommands(compileCommands: any, platform: string, architecture: string) {
 
         this._sourceFileConfigurations.clear();
-        this._workspaceBrowsePaths.clear();
-        this._workspaceCompilerArgs.clear();
-        this._workspaceCompiler = undefined;
-        this._workspaceStandard = undefined;
+        this._workspaceBrowsePaths.forEach((paths) => { paths = [] });
+        this._workspaceCompilerArgs.forEach((args) => { args = [] });
+        this._workspaceCompiler.forEach(compiler => { compiler = undefined; })
+        this._workspaceStandard.forEach(standard => { standard = undefined; });
 
         compileCommands.forEach(cmd => {
             // Validate the incoming command
@@ -268,13 +274,13 @@ export class XMakeCppCustomConfigurationProvider implements CustomConfigurationP
                     const relativePath = path.relative(uri.fsPath, folder.uri.fsPath);
                     if(relativePath.startsWith("..") || relativePath.startsWith("."))
                     {
-                        pushIfNotExist(this._workspaceBrowsePaths[folder.uri.fsPath], includePaths);
-                        pushIfNotExist(this._workspaceCompilerArgs[folder.uri.fsPath], compilerArgs);
-                        this._workspaceCompiler[folder.uri.fsPath] = compilerPath;
-                        this._workspaceStandard[folder.uri.fsPath] = standard;
+                        pushIfNotExist(this._workspaceBrowsePaths.get(folder.uri.fsPath), includePaths);
+                        pushIfNotExist(this._workspaceCompilerArgs.get(folder.uri.fsPath), compilerArgs);
+                        this._workspaceCompiler.set(folder.uri.fsPath, compilerPath);
+                        this._workspaceStandard.set(folder.uri.fsPath, standard);
                     }
-                })
-            }
+                });
+             }
             else{
                 console.error("Failed to process compile command '" + JSON.stringify(cmd) + "'");
             }
