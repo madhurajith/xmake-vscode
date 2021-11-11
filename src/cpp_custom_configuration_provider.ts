@@ -156,7 +156,7 @@ export class XMakeCppCustomConfigurationProvider implements CustomConfigurationP
      * configurations for any of the files requested.
      */
     provideConfigurations(uris: Uri[], token?: CancellationToken): Thenable<SourceFileConfigurationItem[]> {
-        let items : SourceFileConfigurationItem[];
+        let items : SourceFileConfigurationItem[] = new Array();
         uris.forEach(uri => {
             if(this._sourceFileConfigurations.has(uri.fsPath))
                 items.push(this._sourceFileConfigurations.get(uri.fsPath));
