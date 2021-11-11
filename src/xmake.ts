@@ -150,7 +150,7 @@ export class XMake implements vscode.Disposable {
     async updateIntellisense() {
         log.verbose("updating Intellisense ..");
 
-        if(fs.existsSync(path.join(config.workingDirectory, ".vscode"))) {
+        if(!fs.existsSync(path.join(config.workingDirectory, ".vscode"))) {
              fs.mkdir(path.join(config.workingDirectory, ".vscode"));
         }
 
