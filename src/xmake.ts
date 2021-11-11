@@ -157,6 +157,11 @@ export class XMake implements vscode.Disposable {
     // update Intellisense
     async updateIntellisense() {
         log.verbose("updating Intellisense ..");
+
+        if(fs.existsSync(path.join(config.workingDirectory, ".vscode"))) {
+             fs.mkdir(path.join(config.workingDirectory, ".vscode"));
+        }
+
         let updateIntellisenseScript = path.join(__dirname, `../../assets/update_intellisense.lua`);
         if (fs.existsSync(updateIntellisenseScript)) {
             await process.runv("xmake", ["l", updateIntellisenseScript], {"COLORTERM": "nocolor"}, config.workingDirectory);
@@ -299,9 +304,8 @@ export class XMake implements vscode.Disposable {
         this.initWatcher();
 
         this._xmakeCppCustomConfigurationProvider = new XMakeCppCustomConfigurationProvider();
-        this.updateCompileCommands();
-        this.registerCppCustomConfigurationProvider();
-
+        this.updateIntellisense();
+        
         // init project name
         let projectName = path.basename(utils.getProjectRoot());
         this._option.set("project", projectName);
@@ -1054,11 +1058,17 @@ export class XMake implements vscode.Disposable {
     }
 
     async updateCompileCommands() {
-        const getCompileCommandsScript = path.join(__dirname, '../../assets/get_compile_commands.lua');
-        if(fs.existsSync(getCompileCommandsScript)) {
-            const compileCommandsJson = (await process.iorunv('xmake', ['l', getCompileCommandsScript])).stdout.trim();
-            const compileCommands = JSON.parse(compileCommandsJson);
-            await this._xmakeCppCustomConfigurationProvider.updateCompileCommands(compileCommands,this._status.plat, this._status.arch);
-        }
+        // Ideally we should be able to read compile commands directly using iorunv.
+        // At this point i'm not sure whether the compile commands can be written to the console without
+        // changing xmake code itself.
+        // For now reading compile commands from the default compile commands file inside .vscode.
+
+        if(fs.existsSync(path.join(config.workingDirectory, ".vscode/compile_commands.json"))) {
+            await fs.readFile(path.join(config.workingDirectory, ".vscode/compile_commands.json"), (err, data) => {
+                this._xmakeCppCustomConfigurationProvider.updateCompileCommands(JSON.parse(data.toString()),this._status.plat, this._status.arch);
+                this.deregisterCppCustomConfigurationProvider();
+                this.registerCppCustomConfigurationProvider();
+            });
+        } 
     }
 };
