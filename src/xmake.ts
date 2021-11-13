@@ -293,6 +293,8 @@ export class XMake implements vscode.Disposable {
 
         // enable this plugin
         this._enabled = true;
+
+        vscode.commands.executeCommand('setContext', 'xmakeEnabled', true);
     }
 
     // create project
@@ -383,6 +385,8 @@ export class XMake implements vscode.Disposable {
 
         // disable this plugin
         this._enabled = false;
+
+        vscode.commands.executeCommand('setContext', 'xmakeEnabled', false);
     }
 
     // on create project
