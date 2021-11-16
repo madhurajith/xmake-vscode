@@ -16,6 +16,8 @@ import {Completion} from './completion';
 import {XmakeTaskProvider} from './task';
 import * as process from './process';
 import * as utils from './utils';
+import {XMakeCppCustomConfigurationProvider} from './cpp_custom_configuration_provider';
+import { CppToolsApi, getCppToolsApi,Version } from 'vscode-cpptools';
 
 // the option arguments
 export interface OptionArguments extends vscode.QuickPickItem {
@@ -61,6 +63,9 @@ export class XMake implements vscode.Disposable {
     // the xmake task provider
     private _xmakeTaskProvider: vscode.Disposable | undefined;
 
+    // cpptools custom configuration provider
+    private _xmakeCppCustomConfigurationProvider: XMakeCppCustomConfigurationProvider;
+
     // the constructor
     constructor(context: vscode.ExtensionContext) {
 
@@ -101,6 +106,10 @@ export class XMake implements vscode.Disposable {
         if (this._xmakeTaskProvider) {
             this._xmakeTaskProvider.dispose();
         }
+        if(this._xmakeCppCustomConfigurationProvider) {
+            this.deregisterCppCustomConfigurationProvider();
+            this._xmakeCppCustomConfigurationProvider.dispose();
+        }
     }
 
     // load cache
@@ -140,9 +149,16 @@ export class XMake implements vscode.Disposable {
     // update Intellisense
     async updateIntellisense() {
         log.verbose("updating Intellisense ..");
+
+        const compileCommandsDirectory = path.join(config.workingDirectory, config.compileCommandsDirectory);
+        if(!fs.existsSync(compileCommandsDirectory)) {
+             fs.mkdirSync(compileCommandsDirectory, {recursive: true});
+        }
+
         let updateIntellisenseScript = path.join(__dirname, `../../assets/update_intellisense.lua`);
         if (fs.existsSync(updateIntellisenseScript)) {
             await process.runv(config.executable, ["l", updateIntellisenseScript, config.compileCommandsDirectory], {"COLORTERM": "nocolor"}, config.workingDirectory);
+            await this.updateCompileCommands();
         }
     }
 
@@ -275,6 +291,9 @@ export class XMake implements vscode.Disposable {
         // init watcher
         this.initWatcher();
 
+        this._xmakeCppCustomConfigurationProvider = new XMakeCppCustomConfigurationProvider();
+        this.updateIntellisense();
+        
         // init project name
         let projectName = path.basename(utils.getProjectRoot());
         this._option.set("project", projectName);
@@ -990,5 +1009,51 @@ export class XMake implements vscode.Disposable {
             this._option.set("target", chosen.label);
             this._status.target = chosen.label;
         }
+    }
+
+    async registerCppCustomConfigurationProvider() {
+        let api: CppToolsApi|undefined = await getCppToolsApi(Version.v2);
+        if (api) {
+            if (api.notifyReady) {
+                // Inform cpptools that a custom config provider will be able to service the current workspace.
+                api.registerCustomConfigurationProvider(this._xmakeCppCustomConfigurationProvider);
+
+                // Do any required setup that the provider needs.
+
+                // Notify cpptools that the provider is ready to provide IntelliSense configurations.
+                api.notifyReady(this._xmakeCppCustomConfigurationProvider);
+            } else {
+                // Running on a version of cpptools that doesn't support v2 yet.
+                
+                // Do any required setup that the provider needs.
+
+                // Inform cpptools that a custom config provider will be able to service the current workspace.
+                api.registerCustomConfigurationProvider(this._xmakeCppCustomConfigurationProvider);
+                api.didChangeCustomConfiguration(this._xmakeCppCustomConfigurationProvider);
+            }
+        }
+    }
+
+    async deregisterCppCustomConfigurationProvider() {
+        let api: CppToolsApi|undefined = await getCppToolsApi(Version.v2);
+        if (api) {
+            api.dispose();
+        }
+    }
+
+    async updateCompileCommands() {
+        // Ideally we should be able to read compile commands directly using iorunv.
+        // At this point i'm not sure whether the compile commands can be written to the console without
+        // changing xmake code itself.
+        // For now reading compile commands from the default compile commands file inside .vscode.
+
+        const compileCommandsFile = path.join(config.workingDirectory, config.compileCommandsDirectory, "compile_commands.json");
+        if(fs.existsSync(compileCommandsFile)) {
+            await fs.readFile(compileCommandsFile, (err, data) => {
+                this._xmakeCppCustomConfigurationProvider.updateCompileCommands(JSON.parse(data.toString()),this._status.plat, this._status.arch);
+                this.deregisterCppCustomConfigurationProvider();
+                this.registerCppCustomConfigurationProvider();
+            });
+        } 
     }
 };
