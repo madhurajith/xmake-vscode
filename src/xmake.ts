@@ -14,6 +14,7 @@ import {ProblemList} from './problem';
 import {Debugger} from './debugger';
 import {Completion} from './completion';
 import {XmakeTaskProvider} from './task';
+import {XMakeExplorer} from './explorer';
 import * as process from './process';
 import * as utils from './utils';
 import {XMakeCppCustomConfigurationProvider} from './cpp_custom_configuration_provider';
@@ -65,6 +66,8 @@ export class XMake implements vscode.Disposable {
 
     // cpptools custom configuration provider
     private _xmakeCppCustomConfigurationProvider: XMakeCppCustomConfigurationProvider;
+    
+    private _xmakeExplorer: XMakeExplorer;
 
     // the constructor
     constructor(context: vscode.ExtensionContext) {
@@ -109,6 +112,9 @@ export class XMake implements vscode.Disposable {
         if(this._xmakeCppCustomConfigurationProvider) {
             this.deregisterCppCustomConfigurationProvider();
             this._xmakeCppCustomConfigurationProvider.dispose();
+        }
+        if (this._xmakeExplorer) {
+            this._xmakeExplorer.dispose();
         }
     }
 
@@ -167,7 +173,7 @@ export class XMake implements vscode.Disposable {
 
         // init log file system watcher
         this._logFileSystemWatcher = vscode.workspace.createFileSystemWatcher(".xmake/**/vscode-build.log");
-		this._logFileSystemWatcher.onDidCreate(this.onLogFileUpdated.bind(this));
+        this._logFileSystemWatcher.onDidCreate(this.onLogFileUpdated.bind(this));
         this._logFileSystemWatcher.onDidChange(this.onLogFileUpdated.bind(this));
         this._logFileSystemWatcher.onDidDelete(this.onLogFileDeleted.bind(this));
 
@@ -219,6 +225,7 @@ export class XMake implements vscode.Disposable {
         if (filePath.includes("xmake.lua")) {
             this.loadCache();
             this.updateIntellisense();
+            this._xmakeExplorer.refresh();
         }
     }
 
@@ -268,6 +275,10 @@ export class XMake implements vscode.Disposable {
         // register xmake task provider
         this._xmakeTaskProvider = vscode.tasks.registerTaskProvider(XmakeTaskProvider.XmakeType, new XmakeTaskProvider(utils.getProjectRoot()));
 
+        // explorer
+        this._xmakeExplorer = new XMakeExplorer();
+        await this._xmakeExplorer.init(this._context);
+
         // init terminal
         if (!this._terminal) {
             this._terminal = new Terminal();
@@ -301,6 +312,8 @@ export class XMake implements vscode.Disposable {
 
         // enable this plugin
         this._enabled = true;
+
+        vscode.commands.executeCommand('setContext', 'xmakeEnabled', true);
     }
 
     // create project
@@ -353,7 +366,7 @@ export class XMake implements vscode.Disposable {
         // open project directory first!
         if (!utils.getProjectRoot()) {
             if (!!(await vscode.window.showErrorMessage('no opened folder!',
-            'Open a xmake project directory first!'))) {
+                'Open a xmake project directory first!'))) {
                 vscode.commands.executeCommand('vscode.openFolder');
             }
             return;
@@ -391,6 +404,8 @@ export class XMake implements vscode.Disposable {
 
         // disable this plugin
         this._enabled = false;
+
+        vscode.commands.executeCommand('setContext', 'xmakeEnabled', false);
     }
 
     // on create project
@@ -402,7 +417,7 @@ export class XMake implements vscode.Disposable {
 
     // on new files
     async onNewFiles(target?: string) {
-
+ 
         if (!this._enabled) {
             return ;
         }
@@ -441,7 +456,7 @@ export class XMake implements vscode.Disposable {
         }
 
         // option changed?
-        if (this._optionChanged) {
+        if (this._optionChanged || this._xmakeExplorer.getOptionsChanged()) {
 
             // get the target platform
             let plat = this._option.get<string>("plat");
@@ -470,11 +485,14 @@ export class XMake implements vscode.Disposable {
                 command += ` ${config.additionalConfigArguments}`
             }
 
+            command += ` ${this._xmakeExplorer.getCommandOptions()}`
+
             // configure it
             await this._terminal.execute("config", command);
 
             // mark as not changed
             this._optionChanged = false;
+            this._xmakeExplorer.setOptionsChanged(false);
             return true;
         }
         return false;
