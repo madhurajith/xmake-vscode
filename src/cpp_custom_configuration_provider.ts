@@ -38,7 +38,7 @@ function findCompilerArgs(args: string[]) : string[] {
 }
 
 
-function findStandard(args: string[]) : SourceFileConfigurationItem["configuration"]["standard"] {
+function findStandard(fileName: string, args: string[]) : SourceFileConfigurationItem["configuration"]["standard"] {
     const standardPrefix = isMSVC(args) ? "/std:" : "-std=";
     const stdArg = args.find(arg => arg.startsWith(standardPrefix));
     if(stdArg != undefined) {
@@ -67,7 +67,10 @@ function findStandard(args: string[]) : SourceFileConfigurationItem["configurati
             default: return "c++20";
         }
     } else {
-        return "c++20";
+        if(path.extname(fileName).toLowerCase() == '.c')
+            return "c17";
+        else
+            return "c++20";
     }
 }
 
@@ -140,8 +143,9 @@ export class XMakeCppCustomConfigurationProvider implements CustomConfigurationP
      * @returns 'true' if this provider can provide IntelliSense configurations for the given document.
      */
     canProvideConfiguration(uri: Uri, token?: CancellationToken): Thenable<boolean> {
+        const hasConf = this._sourceFileConfigurations.has(uri.fsPath);
         return new Promise((resolve, reject) => {
-            resolve(this._sourceFileConfigurations.has(uri.fsPath));
+            resolve(hasConf);
         });
     }
 
@@ -250,7 +254,7 @@ export class XMakeCppCustomConfigurationProvider implements CustomConfigurationP
                 const includePaths = findIncludePaths(cmd.directory, cmd.arguments);
                 const compilerPath = findCompilerPath(cmd.arguments);
                 const compilerArgs = findCompilerArgs(cmd.arguments);
-                const standard = findStandard(cmd.arguments);
+                const standard = findStandard(cmd.file, cmd.arguments);
 
                 // Populate the source file configuration item
 
