@@ -7,17 +7,33 @@ function isMSVC(args: string[]) : boolean {
     return path.basename(args[1]).toLowerCase() == "cl";
 }
 
+function readOptionValues(optionPrefix: string, args: string[]){
+    let values : string[];
+    let pickNext = false;
+
+    args.forEach( arg => {
+        if(pickNext)
+            values.push(arg);
+        else if(arg.startsWith(optionPrefix)){
+            if(arg.length > optionPrefix.length)
+                values.push(arg.substring(optionPrefix.length));
+            else
+                pickNext = true;
+        }
+    });
+
+    return values;
+}
+
 function findIncludePaths(dir: string, args: string[]) : string[] {
     const includeOptionPrefix = isMSVC(args) ? "/I" : "-I";
-    return args.filter(arg => arg.startsWith(includeOptionPrefix)).map(inc => {
-        let includePath = inc.substring(2);
-        return path.isAbsolute(includePath) ? includePath : path.join(dir, includePath);
-    });
+    return readOptionValues(includeOptionPrefix, args).map(inc => path.isAbsolute(inc) ? inc : path.join(dir, inc));
+    
 }
 
 function findDefines(args: string[]) : string[] {
     const defineOptionPrefix = isMSVC(args) ? "/D" : "-D";
-    return args.filter(arg => arg.startsWith(defineOptionPrefix)).map(def => def.substring(2));
+    return readOptionValues(defineOptionPrefix, args);
 }
 
 function findCompilerPath(args: string[]) : string {
