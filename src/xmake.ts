@@ -333,7 +333,7 @@ export class XMake implements vscode.Disposable {
                             if (!this._terminal) {
                                 this._terminal = new Terminal();
                             }
-                            await this._terminal.execute("create", `${config.executable} create -t ${chosen2.label} -l ${chosen.label} -P ${config.workingDirectory}`);
+                            await this._terminal.execute("create", `${config.executable} create -t ${chosen2.label} -l ${chosen.label} -P ${config.workingDirectory}`, false);
 
                             // start plugin
                             this.startPlugin();
@@ -630,10 +630,10 @@ export class XMake implements vscode.Disposable {
 
         // get target arguments
         let args = [];
-        if (targetName && targetName in config.debuggingTargetsArguments)
-            args = config.debuggingTargetsArguments[targetName];
-        else if ("default" in config.debuggingTargetsArguments)
-            args = config.debuggingTargetsArguments["default"];
+        if (targetName && targetName in config.runningTargetsArguments)
+            args = config.runningTargetsArguments[targetName];
+        else if ("default" in config.runningTargetsArguments)
+            args = config.runningTargetsArguments["default"];
 
         // make command line arguments string
         let argstr = "";

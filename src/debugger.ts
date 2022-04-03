@@ -56,6 +56,10 @@ export class Debugger implements vscode.Disposable {
             args = config.debuggingTargetsArguments[targetName];
         else if ("default" in config.debuggingTargetsArguments)
             args = config.debuggingTargetsArguments["default"];
+        else if (targetName in config.runningTargetsArguments)
+            args = config.runningTargetsArguments[targetName];
+        else if ("default" in config.runningTargetsArguments)
+            args = config.runningTargetsArguments["default"];
 
         // uses codelldb debugger?
         var codelldb = false;
@@ -142,7 +146,8 @@ export class Debugger implements vscode.Disposable {
                     stopAtEntry: true,
                     cwd: targetRunDir,
                     environment: [],
-                    externalConsole: true,
+                    // externalConsole: true, // https://github.com/microsoft/vscode-cpptools/issues/6939
+                    console: "externalTerminal",
                     MIMode: "gdb",
                     miDebuggerPath: "",
                     description: "Enable pretty-printing for gdb",
