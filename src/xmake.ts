@@ -16,7 +16,7 @@ import {Completion} from './completion';
 import {XmakeTaskProvider} from './task';
 import * as process from './process';
 import * as utils from './utils';
-import {XMakeCppCustomConfigurationProvider} from './cpp_custom_configuration_provider';
+import {XMakeCppCustomConfigurationProvider} from './custom_conf';
 import { CppToolsApi, getCppToolsApi,Version } from 'vscode-cpptools';
 
 // the option arguments
@@ -158,7 +158,7 @@ export class XMake implements vscode.Disposable {
         let updateIntellisenseScript = path.join(__dirname, `../../assets/update_intellisense.lua`);
         if (fs.existsSync(updateIntellisenseScript)) {
             await process.runv(config.executable, ["l", updateIntellisenseScript, config.compileCommandsDirectory], {"COLORTERM": "nocolor"}, config.workingDirectory);
-            await this.updateCompileCommands();
+            await this.updateCustomConfiguration();
         }
     }
 
@@ -1041,7 +1041,7 @@ export class XMake implements vscode.Disposable {
         }
     }
 
-    async updateCompileCommands() {
+    async updateCustomConfiguration() {
         // Ideally we should be able to read compile commands directly using iorunv.
         // At this point i'm not sure whether the compile commands can be written to the console without
         // changing xmake code itself.
