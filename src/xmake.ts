@@ -148,6 +148,9 @@ export class XMake implements vscode.Disposable {
         log.verbose("updating Intellisense ..");
         let updateIntellisenseScript = path.join(__dirname, `../../assets/update_intellisense.lua`);
         if (fs.existsSync(updateIntellisenseScript)) {
+            if(!fs.existsSync(config.compileCommandsDirectory)) {
+                fs.mkdirSync(config.compileCommandsDirectory);
+            }
             await process.runv(config.executable, ["l", updateIntellisenseScript, config.compileCommandsDirectory], {"COLORTERM": "nocolor"}, config.workingDirectory);
         }
     }
@@ -303,6 +306,9 @@ export class XMake implements vscode.Disposable {
         let projectName = path.basename(utils.getProjectRoot());
         this._option.set("project", projectName);
         this._status.project = projectName;
+
+        // update intellisense for the first time
+        this.updateIntellisense();
 
         // enable this plugin
         this._enabled = true;

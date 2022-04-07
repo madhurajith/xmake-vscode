@@ -465,7 +465,7 @@
         },
         "xmake.compileCommandsDirectory": {
           "type": "string",
-          "default": ".vscode",
+          "default": "build",
           "description": "The compile_commands.json file directory"
         },
         "xmake.additionalConfigArguments": {
